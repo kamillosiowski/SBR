@@ -1,16 +1,26 @@
+
 import { Measurement, SBRSettings } from '../types';
 
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// npoint.io API: endpoint bez /documents w ścieżce
-const API_BASE = 'https://api.npoint.io';
+// Przejście na JsonBlob - wysoka stabilność i brak restrykcji CORS
+const API_BASE = 'https://jsonblob.com/api/jsonBlob';
 
 export const storageService = {
   async saveMeasurement(measurement: Measurement): Promise<void> {
     const data = await this.getHistory();
     data.unshift(measurement);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    // AUTOMATYCZNY PUSH: Jeśli mamy ID, wysyłamy w tle
+    const settings = this.getSettings();
+    if (settings.syncId) {
+      console.log('Auto-sync triggered for:', settings.syncId);
+      this.pushToCloud(data, settings.syncId).catch(err => {
+        console.warn('Auto-sync failed (offline?), data saved locally.', err);
+      });
+    }
   },
 
   async getHistory(): Promise<Measurement[]> {
@@ -32,6 +42,12 @@ export const storageService = {
     const data = await this.getHistory();
     const filtered = data.filter(m => m.id !== id);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    
+    // Auto-sync po usunięciu
+    const settings = this.getSettings();
+    if (settings.syncId) {
+      this.pushToCloud(filtered, settings.syncId).catch(() => {});
+    }
   },
 
   getSettings(): SBRSettings {
@@ -48,26 +64,37 @@ export const storageService = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  // UWAGA: npoint.io nie pozwala na tworzenie dokumentów przez API bez logowania
-  // Użytkownicy muszą utworzyć dokument ręcznie na www.npoint.io
   async createCloudBin(): Promise<string | null> {
-    // Przekieruj użytkownika do manualnego utworzenia dokumentu
-    alert('Aby utworzyć nowe ID Sync:\n\n' +
-          '1. Otwórz https://www.npoint.io/\n' +
-          '2. Kliknij "Create JSON Bin"\n' +
-          '3. Skopiuj token z URL (np. 30a7bdb0ebb9d9477e74)\n' +
-          '4. Wklej go tutaj jako Sync ID');
-    return null;
+    try {
+      const response = await fetch(API_BASE, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ sbr_data: [] }) 
+      });
+      
+      if (!response.ok) return null;
+      
+      // JsonBlob zwraca ID w nagłówku x-jsonblob lub Location
+      const blobId = response.headers.get('x-jsonblob') || 
+                     response.headers.get('Location')?.split('/').pop();
+      
+      return blobId || null;
+    } catch (e) {
+      console.error('Network error during createCloudBin:', e);
+      return null;
+    }
   },
 
   async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
     if (!syncId) return false;
     try {
-      // Token jest bezpośrednio w URL, bez /documents
       const response = await fetch(`${API_BASE}/${syncId}`, {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)  // Wysyłaj dane bezpośrednio, nie w obiekcie sbr_data
+        body: JSON.stringify({ sbr_data: data })
       });
       return response.ok;
     } catch (e) {
@@ -82,8 +109,8 @@ export const storageService = {
       const response = await fetch(`${API_BASE}/${syncId}`);
       if (!response.ok) return null;
       const result = await response.json();
-      // Dane powinny być bezpośrednio tablicą
-      return Array.isArray(result) ? result : null;
+      const data = result.sbr_data || result;
+      return Array.isArray(data) ? data : null;
     } catch (e) {
       console.error('Cloud Pull Error:', e);
       return null;
