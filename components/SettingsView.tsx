@@ -40,16 +40,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
       const newSettings = { ...settings, syncId: newId, autoSyncEnabled: true };
       storageService.saveSettings(newSettings);
       setSettings(newSettings);
+      
       // Pierwszy push obecnych danych do nowego vaulta
       const history = await storageService.getHistory();
-      await storageService.pushToCloud(history, newId);
+      if (history.length > 0) {
+        await storageService.pushToCloud(history, newId);
+      }
+      
       setSyncStatus('success');
-      alert(`UTWORZONO NOWĄ CHMURĘ!\nTwój Kod: ${newId}\nZapisz go, aby podłączyć inne telefony.`);
+      alert(`SUKCES!\nTwoja chmura została utworzona.\nKOD: ${newId}\nUżyj go na innych urządzeniach.`);
     } else {
       setSyncStatus('error');
-      alert('Błąd serwera. Spróbuj za chwilę.');
+      alert('BŁĄD SERWERA CHMURY\nSerwer npoint.io (darmowy hosting JSON) jest obecnie przeciążony i zwrócił błąd 500.\n\nSpróbuj ponownie za 30 sekund - zazwyczaj problem mija po chwili.');
     }
-    setTimeout(() => setSyncStatus('idle'), 2000);
+    setTimeout(() => setSyncStatus('idle'), 3000);
   };
 
   const handleLinkVault = async () => {
@@ -122,7 +126,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
               <button 
                 onClick={handleCreateVault}
                 disabled={syncStatus === 'loading'}
-                className="w-full bg-blue-600 p-6 rounded-[2rem] flex flex-col items-center gap-2 hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-900/40"
+                className="w-full bg-blue-600 p-6 rounded-[2rem] flex flex-col items-center gap-2 hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-900/40 disabled:opacity-50 disabled:active:scale-100"
               >
                 {syncStatus === 'loading' ? <Loader2 className="animate-spin" /> : <Zap size={28} className="fill-white" />}
                 <span className="font-black text-xs uppercase tracking-widest">Utwórz nową chmurę</span>

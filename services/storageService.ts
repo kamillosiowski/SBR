@@ -4,8 +4,9 @@ import { Measurement, SBRSettings } from '../types';
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// npoint.io to jeden z najstabilniejszych darmowych JSON storage, świetny do "Cloud Sync"
-const API_BASE = 'https://api.npoint.io';
+// npoint.io API
+// Końcowy ukośnik jest krytyczny dla poprawności niektórych metod POST na tym serwerze
+const API_BASE = 'https://api.npoint.io/';
 
 export const storageService = {
   async saveMeasurement(measurement: Measurement): Promise<void> {
@@ -15,7 +16,7 @@ export const storageService = {
 
     const settings = this.getSettings();
     if (settings.syncId && settings.autoSyncEnabled) {
-      this.pushToCloud(data, settings.syncId).catch(() => {});
+      this.pushToCloud(data, settings.syncId).catch(console.error);
     }
   },
 
@@ -26,7 +27,7 @@ export const storageService = {
 
     const settings = this.getSettings();
     if (settings.syncId && settings.autoSyncEnabled) {
-      this.pushToCloud(filtered, settings.syncId).catch(() => {});
+      this.pushToCloud(filtered, settings.syncId).catch(console.error);
     }
   },
 
@@ -76,48 +77,92 @@ export const storageService = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  // Tworzy nowy "Vault" w chmurze i zwraca jego ID
-  async createNewVault(): Promise<string | null> {
+  /**
+   * Tworzy nowy "Vault" w chmurze npoint.io.
+   * Wykorzystuje progresywne opóźnienie (backoff) w przypadku błędów 500.
+   */
+  async createNewVault(retries = 3): Promise<string | null> {
+    const attempt = 4 - retries;
+    console.log(`SBR Cloud: Inicjalizacja (Próba ${attempt}/3)...`);
+    
     try {
+      // Przy trzeciej próbie wysyłamy całkowicie pusty obiekt jako fallback
+      const payload = retries === 1 ? {} : { 
+        measurements: [],
+        _v: 1.1,
+        _app: "SBR Monitor",
+        _ts: Date.now()
+      };
+
       const response = await fetch(API_BASE, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ measurements: [] })
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
-      if (!response.ok) return null;
+      
+      if (!response.ok) {
+        if (response.status === 500 && retries > 0) {
+          const delay = attempt * 1500; // 1.5s, 3s, 4.5s
+          console.warn(`SBR Cloud: Serwer zgłosił 500. Ponawiam za ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          return this.createNewVault(retries - 1);
+        }
+        console.error(`SBR Cloud: Błąd HTTP ${response.status}`);
+        return null;
+      }
+      
       const result = await response.json();
-      return result.id || null;
+      if (result && result.id) {
+        console.log('SBR Cloud: Utworzono pomyślnie. ID:', result.id);
+        return result.id;
+      }
+      
+      return null;
     } catch (e) {
-      console.error('Vault creation failed', e);
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, 2000));
+        return this.createNewVault(retries - 1);
+      }
+      console.error('SBR Cloud: Błąd sieci', e);
       return null;
     }
   },
 
+  /**
+   * Wysyła dane do istniejącej chmury
+   */
   async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
     if (!syncId) return false;
     try {
-      const response = await fetch(`${API_BASE}/${syncId}`, {
-        method: 'POST', // npoint używa POST do aktualizacji
+      const response = await fetch(`${API_BASE}${syncId}`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ measurements: data })
       });
+      
       if (response.ok) {
         const settings = this.getSettings();
         this.saveSettings({ ...settings, lastSync: Date.now() });
+        return true;
       }
-      return response.ok;
+      return false;
     } catch (e) {
       return false;
     }
   },
 
+  /**
+   * Pobiera dane z chmury
+   */
   async pullFromCloud(syncId: string): Promise<Measurement[] | null> {
     if (!syncId) return null;
     try {
-      const response = await fetch(`${API_BASE}/${syncId}`);
+      const response = await fetch(`${API_BASE}${syncId}`);
       if (!response.ok) return null;
       const result = await response.json();
-      return result.measurements || null;
+      return result.measurements || [];
     } catch (e) {
       return null;
     }
