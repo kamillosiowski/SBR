@@ -14,6 +14,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'creating'>('idle');
 
   const generateId = async () => {
+    if (!navigator.onLine) {
+      alert('Brak połączenia z internetem. Nie można utworzyć ID.');
+      return;
+    }
     setSyncStatus('creating');
     const newId = await storageService.createCloudBin();
     if (newId) {
@@ -21,7 +25,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
       setSettings(newSettings);
       storageService.saveSettings(newSettings);
       setSyncStatus('success');
-      setTimeout(() => setSyncStatus('idle'), 2000);
+      setTimeout(() => setSyncStatus('idle'), 3000);
     } else {
       setSyncStatus('error');
     }
@@ -49,6 +53,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
     setSyncStatus(ok ? 'success' : 'error');
     if (ok) {
       storageService.saveSettings({ ...settings, lastSync: Date.now() });
+      setTimeout(() => setSyncStatus('idle'), 3000);
     }
   };
 
@@ -57,10 +62,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
     setSyncStatus('loading');
     const remoteData = await storageService.pullFromCloud(settings.syncId);
     if (remoteData) {
-      if (confirm('UWAGA: To zastąpi Twoje lokalne wpisy danymi z chmury. Kontynuować?')) {
+      if (confirm('UWAGA: Czy na pewno chcesz nadpisać lokalne dane tymi z chmury?')) {
         await storageService.setHistory(remoteData);
         setSyncStatus('success');
         onDataRefresh();
+        setTimeout(() => setSyncStatus('idle'), 3000);
       } else {
         setSyncStatus('idle');
       }
@@ -81,8 +87,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
             <Key className="text-blue-400" size={24} />
           </div>
           <div>
-            <h3 className="font-black text-slate-100 uppercase text-xs tracking-widest">Klucz Synchronizacji</h3>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">ID Twojej prywatnej bazy danych</p>
+            <h3 className="font-black text-slate-100 uppercase text-xs tracking-widest">Twoje ID w chmurze</h3>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Klucz dostępu do Twoich pomiarów</p>
           </div>
         </div>
 
@@ -91,12 +97,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
             type="text" 
             value={settings.syncId}
             onChange={(e) => updateSyncId(e.target.value)}
-            placeholder="Kliknij przycisk poniżej, aby utworzyć ID..."
+            placeholder="Wpisz lub wygeneruj ID..."
             className="flex-1 bg-slate-950 border-2 border-slate-800 rounded-2xl p-4 text-blue-400 font-black mono focus:border-blue-500 outline-none transition-all uppercase text-sm"
           />
           <button 
             onClick={copyToClipboard}
-            className="bg-slate-800 px-5 rounded-2xl text-slate-300 hover:text-white transition-colors"
+            disabled={!settings.syncId}
+            className="bg-slate-800 px-5 rounded-2xl text-slate-300 hover:text-white transition-colors disabled:opacity-20"
           >
             {copied ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
           </button>
@@ -108,25 +115,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
           className="w-full py-5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-95 transition-all mb-8 flex items-center justify-center gap-3 disabled:opacity-50"
         >
           {syncStatus === 'creating' ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
-          {syncStatus === 'creating' ? 'TWORZENIE MIEJSCA W CHMURZE...' : 'GENERUJ NOWE SYNC ID'}
+          {syncStatus === 'creating' ? 'ŁĄCZENIE Z SERWEREM...' : 'GENERUJ NOWE ID SYNC'}
         </button>
 
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={handlePush}
-            disabled={syncStatus === 'loading' || !settings.syncId}
+            disabled={syncStatus === 'loading' || syncStatus === 'creating' || !settings.syncId}
             className="flex flex-col items-center gap-3 p-6 bg-slate-950 border border-slate-800 rounded-3xl hover:border-blue-500/50 transition-all group active:scale-95 disabled:opacity-30"
           >
             <CloudUpload size={32} className="text-blue-500 group-hover:scale-110 transition-transform" />
             <div className="text-center">
               <span className="block font-black text-[10px] uppercase tracking-widest text-slate-100">Wyślij (Push)</span>
-              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Aktualizuj chmurę</span>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Zapisz w chmurze</span>
             </div>
           </button>
 
           <button 
             onClick={handlePull}
-            disabled={syncStatus === 'loading' || !settings.syncId}
+            disabled={syncStatus === 'loading' || syncStatus === 'creating' || !settings.syncId}
             className="flex flex-col items-center gap-3 p-6 bg-slate-950 border border-slate-800 rounded-3xl hover:border-emerald-500/50 transition-all group active:scale-95 disabled:opacity-30"
           >
             <CloudDownload size={32} className="text-emerald-500 group-hover:scale-110 transition-transform" />
@@ -137,28 +144,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
           </button>
         </div>
 
-        {syncStatus !== 'idle' && syncStatus !== 'creating' && (
+        {syncStatus !== 'idle' && (
           <div className={`mt-6 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center border animate-in slide-in-from-top-2 ${
-            syncStatus === 'loading' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+            syncStatus === 'loading' || syncStatus === 'creating' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
             syncStatus === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
             'bg-red-500/10 text-red-400 border-red-500/20'
           }`}>
-            {syncStatus === 'loading' && 'Przesyłanie danych...'}
-            {syncStatus === 'success' && 'SUKCES: Dane zsynchronizowane!'}
-            {syncStatus === 'error' && 'BŁĄD: Problem z połączeniem. Sprawdź internet.'}
+            {syncStatus === 'creating' && 'Inicjalizacja nowej bazy...'}
+            {syncStatus === 'loading' && 'Przesyłanie danych do chmury...'}
+            {syncStatus === 'success' && 'SUKCES: Operacja wykonana!'}
+            {syncStatus === 'error' && 'BŁĄD SERWERA: Spróbuj ponownie za chwilę'}
           </div>
         )}
       </div>
 
-      <div className="bg-blue-500/5 border border-blue-500/20 p-6 rounded-3xl">
-        <h4 className="text-blue-400 font-black text-xs uppercase tracking-[0.2em] flex items-center gap-2 mb-3">
-          <AlertTriangle size={16} /> Jak to działa?
+      <div className="bg-amber-500/5 border border-amber-500/20 p-6 rounded-3xl">
+        <h4 className="text-amber-400 font-black text-xs uppercase tracking-[0.2em] flex items-center gap-2 mb-3">
+          <AlertTriangle size={16} /> Ważne wskazówki
         </h4>
-        <ol className="text-[11px] text-blue-300/60 leading-relaxed font-medium space-y-2 list-decimal ml-4">
-          <li>Kliknij <strong>"Generuj"</strong> na komputerze.</li>
-          <li>Dodaj dane i kliknij <strong>"Wyślij"</strong>.</li>
-          <li>Na telefonie wpisz to samo ID i kliknij <strong>"Pobierz"</strong>.</li>
-          <li>Teraz oba urządzenia mają te same dane.</li>
+        <ol className="text-[11px] text-amber-200/60 leading-relaxed font-medium space-y-2 list-decimal ml-4">
+          <li>Jeśli <strong>"Pobierz"</strong> nie działa, upewnij się, że ID jest poprawne (wielkość liter ma znaczenie).</li>
+          <li>Synchronizacja przesyła całą historię pomiarów naraz.</li>
+          <li>Serwer npoint.io jest darmowy i może mieć czasem krótkie przerwy w działaniu.</li>
         </ol>
       </div>
     </div>
