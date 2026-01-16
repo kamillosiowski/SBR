@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
-import { Cloud, CloudDownload, CloudUpload, Key, Copy, Check, Database, AlertTriangle } from 'lucide-react';
+import { Cloud, CloudDownload, CloudUpload, Key, Copy, Check, Database, AlertTriangle, RefreshCw } from 'lucide-react';
 import { SBRSettings, Measurement } from '../types';
 
 interface SettingsViewProps {
@@ -14,17 +14,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const generateId = () => {
-    const id = `sbr-${Math.random().toString(36).substr(2, 9)}`;
+    // Generowanie dłuższego ID dla lepszej kompatybilności z npoint
+    const id = `sbr-${Math.random().toString(36).substr(2, 9)}${Math.random().toString(36).substr(2, 5)}`;
     updateSyncId(id);
   };
 
   const updateSyncId = (id: string) => {
-    const newSettings = { ...settings, syncId: id };
+    const cleanId = id.trim();
+    const newSettings = { ...settings, syncId: cleanId };
     setSettings(newSettings);
     storageService.saveSettings(newSettings);
   };
 
   const copyToClipboard = () => {
+    if (!settings.syncId) return;
     navigator.clipboard.writeText(settings.syncId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -71,30 +74,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
           </div>
         </div>
 
-        <div className="flex gap-2 mb-8">
+        <div className="flex gap-2 mb-4">
           <input 
             type="text" 
             value={settings.syncId}
             onChange={(e) => updateSyncId(e.target.value)}
-            placeholder="np. sbr-abc-123"
+            placeholder="Wpisz lub wygeneruj ID..."
             className="flex-1 bg-slate-950 border-2 border-slate-800 rounded-2xl p-4 text-blue-400 font-black mono focus:border-blue-500 outline-none transition-all"
           />
           <button 
             onClick={copyToClipboard}
             className="bg-slate-800 px-5 rounded-2xl text-slate-300 hover:text-white transition-colors"
+            title="Kopiuj ID"
           >
             {copied ? <Check size={20} className="text-green-500" /> : <Copy size={20} />}
           </button>
         </div>
 
-        {!settings.syncId && (
-          <button 
-            onClick={generateId}
-            className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-800 text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] hover:border-blue-500/50 hover:text-blue-400 transition-all mb-8"
-          >
-            Generuj nowe Sync ID
-          </button>
-        )}
+        <button 
+          onClick={generateId}
+          className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-800 text-slate-500 font-black uppercase text-[10px] tracking-[0.2em] hover:border-blue-500/50 hover:text-blue-400 transition-all mb-8 flex items-center justify-center gap-2"
+        >
+          <RefreshCw size={14} /> Generuj nowe Sync ID
+        </button>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button 
@@ -104,8 +106,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
           >
             <CloudUpload size={32} className="text-blue-500 group-hover:scale-110 transition-transform" />
             <div className="text-center">
-              <span className="block font-black text-xs uppercase tracking-widest text-slate-100">Wyślij do chmury</span>
-              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Zapisz dane z tego urządzenia</span>
+              <span className="block font-black text-xs uppercase tracking-widest text-slate-100">Wyślij (Push)</span>
+              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Wyślij dane do chmury</span>
             </div>
           </button>
 
@@ -116,8 +118,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
           >
             <CloudDownload size={32} className="text-emerald-500 group-hover:scale-110 transition-transform" />
             <div className="text-center">
-              <span className="block font-black text-xs uppercase tracking-widest text-slate-100">Pobierz z chmury</span>
-              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Nadpisz danymi z chmury</span>
+              <span className="block font-black text-xs uppercase tracking-widest text-slate-100">Pobierz (Pull)</span>
+              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Pobierz dane na to urządzenie</span>
             </div>
           </button>
         </div>
@@ -128,20 +130,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
             syncStatus === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
             'bg-red-500/10 text-red-400 border-red-500/20'
           }`}>
-            {syncStatus === 'loading' && 'Synchronizacja w toku...'}
+            {syncStatus === 'loading' && 'Łączenie z serwerem...'}
             {syncStatus === 'success' && 'Zakończono sukcesem!'}
-            {syncStatus === 'error' && 'Błąd połączenia z chmurą'}
+            {syncStatus === 'error' && 'Błąd: ID może nie istnieć lub serwer jest przeciążony'}
           </div>
         )}
       </div>
 
       <div className="bg-red-500/5 border border-red-500/20 p-6 rounded-3xl">
         <h4 className="text-red-400 font-black text-xs uppercase tracking-[0.2em] flex items-center gap-2 mb-3">
-          <AlertTriangle size={16} /> Ważne
+          <AlertTriangle size={16} /> Pomoc w synchronizacji
         </h4>
-        <p className="text-[11px] text-red-300/60 leading-relaxed font-medium">
-          Domyślnie aplikacja zapisuje dane tylko lokalnie. Aby widzieć te same dane na komputerze i telefonie, musisz ręcznie wysyłać (Push) i pobierać (Pull) dane, lub użyć wspólnego Sync ID. Dane w chmurze są identyfikowane wyłącznie Twoim kluczem.
-        </p>
+        <ul className="text-[11px] text-red-300/60 leading-relaxed font-medium space-y-2 list-disc ml-4">
+          <li>Aby połączyć Windowsa z Androidem, wygeneruj ID na Windowsie, kliknij "Wyślij", a potem przepisz to samo ID na Androidzie i kliknij "Pobierz".</li>
+          <li>Używany serwis (npoint.io) to darmowa usługa – czasami wymaga kilku prób w przypadku błędu.</li>
+          <li>Pobranie danych (Pull) nadpisuje lokalną historię – upewnij się, że masz kopię ważnych danych przed pobieraniem.</li>
+        </ul>
       </div>
     </div>
   );

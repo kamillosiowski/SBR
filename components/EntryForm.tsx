@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { SAMPLING_POINTS, SBR_POINTS, THRESHOLDS } from '../constants';
 import { Measurement, SamplingPoint, MeasurementAlert } from '../types';
-import { Calculator, Save, X, ChevronDown, ChevronUp, Beaker, Settings2, Thermometer } from 'lucide-react';
+import { Calculator, Save, X, ChevronDown, ChevronUp, Beaker, Settings2, Calendar } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface EntryFormProps {
   onSubmit: (m: Measurement) => void;
@@ -12,6 +13,7 @@ interface EntryFormProps {
 export const EntryForm: React.FC<EntryFormProps> = ({ onSubmit, onCancel }) => {
   const [point, setPoint] = useState<SamplingPoint>(SAMPLING_POINTS[0]);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [manualTimestamp, setManualTimestamp] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [formData, setFormData] = useState<Partial<Measurement>>({
     ph: undefined,
     chzt: undefined,
@@ -56,7 +58,7 @@ export const EntryForm: React.FC<EntryFormProps> = ({ onSubmit, onCancel }) => {
 
     const measurement: Measurement = {
       id: crypto.randomUUID(),
-      timestamp: Date.now(),
+      timestamp: new Date(manualTimestamp).getTime(),
       point,
       ...formData,
       mlss: calculatedMlss || undefined,
@@ -83,9 +85,25 @@ export const EntryForm: React.FC<EntryFormProps> = ({ onSubmit, onCancel }) => {
           <Beaker className="text-blue-500" /> Nowy Pomiar
         </h2>
 
+        {/* Date Selection */}
+        <div className="mb-8">
+          <label className="block text-[10px] font-black text-slate-500 mb-4 uppercase tracking-[0.2em] ml-1">Data i godzina pobrania</label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500">
+              <Calendar size={18} />
+            </div>
+            <input 
+              type="datetime-local"
+              value={manualTimestamp}
+              onChange={(e) => setManualTimestamp(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-slate-800 border-2 border-slate-800 rounded-2xl text-slate-100 font-black focus:border-blue-500 transition-all outline-none"
+            />
+          </div>
+        </div>
+
         {/* Sampling Point Selection */}
         <div className="mb-8">
-          <label className="block text-[10px] font-black text-slate-500 mb-4 uppercase tracking-[0.2em] ml-1">1. Punkt poboru</label>
+          <label className="block text-[10px] font-black text-slate-500 mb-4 uppercase tracking-[0.2em] ml-1">Punkt poboru</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {SAMPLING_POINTS.map(p => (
               <button
@@ -106,7 +124,7 @@ export const EntryForm: React.FC<EntryFormProps> = ({ onSubmit, onCancel }) => {
 
         {/* Primary Parameters Section */}
         <div className="mb-8">
-          <label className="block text-[10px] font-black text-slate-500 mb-4 uppercase tracking-[0.2em] ml-1">2. Parametry kluczowe</label>
+          <label className="block text-[10px] font-black text-slate-500 mb-4 uppercase tracking-[0.2em] ml-1">Parametry kluczowe</label>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <InputField label="pH (0-14)" icon="pH" value={formData.ph} onChange={v => handleInputChange('ph', v)} min={0} max={14} step={0.1} />
             <InputField label="NH4 (mg/l)" icon="NH4" value={formData.nh4} onChange={v => handleInputChange('nh4', v)} step={0.01} />
@@ -142,7 +160,7 @@ export const EntryForm: React.FC<EntryFormProps> = ({ onSubmit, onCancel }) => {
         {isSBR && (
           <div className="mt-6 p-6 bg-slate-950 rounded-3xl border border-slate-800 shadow-inner">
             <h3 className="flex items-center gap-2 font-black mb-6 text-blue-500 uppercase text-xs tracking-widest">
-              <Calculator size={18} /> Kalkulator MLSS
+              Kalkulator MLSS
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -182,7 +200,7 @@ export const EntryForm: React.FC<EntryFormProps> = ({ onSubmit, onCancel }) => {
 
         {/* Notes */}
         <div className="mt-10">
-          <label className="block text-[10px] font-black text-slate-500 mb-2 uppercase tracking-[0.2em] ml-1">3. Notatki terenowe</label>
+          <label className="block text-[10px] font-black text-slate-500 mb-2 uppercase tracking-[0.2em] ml-1">Notatki terenowe</label>
           <textarea
             className="w-full p-4 border-2 border-slate-800 rounded-2xl bg-slate-900 text-slate-200 focus:border-blue-500 transition-all min-h-[120px] text-sm font-medium outline-none"
             placeholder="np. piana, specyficzny zapach..."
