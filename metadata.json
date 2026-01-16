@@ -1,0 +1,5 @@
+{
+  "name": "SBR Monitor",
+  "description": "Multiplatform application for logging and monitoring SBR wastewater treatment plant parameters, including MLSS calculation and automated alerts.",
+  "requestFramePermissions": []
+}
