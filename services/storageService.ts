@@ -4,8 +4,8 @@ import { Measurement, SBRSettings } from '../types';
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// Używamy stabilnego punktu końcowego bez zbędnych ukośników
-const API_BASE = 'https://api.npoint.io/documents';
+// npoint.io API: /bins to poprawny punkt końcowy dla tworzenia i edycji
+const API_BASE = 'https://api.npoint.io/bins';
 
 export const storageService = {
   async saveMeasurement(measurement: Measurement): Promise<void> {
@@ -49,24 +49,28 @@ export const storageService = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  // Inicjalizacja nowej bazy w chmurze
+  // Tworzenie nowego "koszyka" danych w chmurze
   async createCloudBin(): Promise<string | null> {
     try {
       const response = await fetch(API_BASE, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sbr_monitor_data: [] }) 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ sbr_data: [] }) 
       });
       
       if (!response.ok) {
-        console.error('Npoint error status:', response.status);
+        console.error('API Error Response:', await response.text());
         return null;
       }
       
       const result = await response.json();
-      return result.id || null;
+      // npoint zwraca ID w polu 'id' lub 'binId'
+      return result.id || result.binId || null;
     } catch (e) {
-      console.error('Npoint connection error:', e);
+      console.error('Network error during createCloudBin:', e);
       return null;
     }
   },
@@ -74,11 +78,11 @@ export const storageService = {
   async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
     if (!syncId) return false;
     try {
-      // POST na /documents/:id aktualizuje zawartość
+      // W npoint.io aktualizacja odbywa się przez PUT lub POST na /bins/:id
       const response = await fetch(`${API_BASE}/${syncId}`, {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sbr_monitor_data: data })
+        body: JSON.stringify({ sbr_data: data })
       });
       return response.ok;
     } catch (e) {
@@ -93,8 +97,8 @@ export const storageService = {
       const response = await fetch(`${API_BASE}/${syncId}`);
       if (!response.ok) return null;
       const result = await response.json();
-      // Dane mogą być w obiekcie lub bezpośrednio
-      const data = result.sbr_monitor_data || result;
+      // Dane mogą być owinięte w obiekt sbr_data lub być bezpośrednio tablicą
+      const data = result.sbr_data || result;
       return Array.isArray(data) ? data : null;
     } catch (e) {
       console.error('Cloud Pull Error:', e);

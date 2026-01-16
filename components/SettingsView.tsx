@@ -15,18 +15,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
 
   const generateId = async () => {
     if (!navigator.onLine) {
-      alert('Brak połączenia z internetem.');
+      alert('Brak połączenia z internetem w przeglądarce.');
       return;
     }
     setSyncStatus('creating');
-    const newId = await storageService.createCloudBin();
-    if (newId) {
-      const newSettings = { ...settings, syncId: newId };
-      setSettings(newSettings);
-      storageService.saveSettings(newSettings);
-      setSyncStatus('success');
-      setTimeout(() => setSyncStatus('idle'), 3000);
-    } else {
+    try {
+      const newId = await storageService.createCloudBin();
+      if (newId) {
+        const newSettings = { ...settings, syncId: newId };
+        setSettings(newSettings);
+        storageService.saveSettings(newSettings);
+        setSyncStatus('success');
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      } else {
+        console.error('Failed to get ID from server');
+        setSyncStatus('error');
+      }
+    } catch (err) {
+      console.error('Critical sync error:', err);
       setSyncStatus('error');
     }
   };
@@ -120,7 +126,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
           className="w-full py-5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-95 transition-all mb-8 flex items-center justify-center gap-3 disabled:opacity-50"
         >
           {syncStatus === 'creating' ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
-          {syncStatus === 'creating' ? 'ŁĄCZENIE Z SERWEREM...' : 'GENERUJ NOWE ID SYNC'}
+          {syncStatus === 'creating' ? 'ŁĄCZENIE Z CHMURĄ...' : 'GENERUJ NOWE ID SYNC'}
         </button>
 
         <div className="grid grid-cols-2 gap-4">
@@ -132,7 +138,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
             <CloudUpload size={32} className="text-blue-500 group-hover:scale-110 transition-transform" />
             <div className="text-center">
               <span className="block font-black text-[10px] uppercase tracking-widest text-slate-100">Wyślij (Push)</span>
-              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Zapisz w chmurze</span>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Zapisz historię</span>
             </div>
           </button>
 
@@ -144,7 +150,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
             <CloudDownload size={32} className="text-emerald-500 group-hover:scale-110 transition-transform" />
             <div className="text-center">
               <span className="block font-black text-[10px] uppercase tracking-widest text-slate-100">Pobierz (Pull)</span>
-              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Odbierz z chmury</span>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Odbierz historię</span>
             </div>
           </button>
         </div>
@@ -155,22 +161,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
             syncStatus === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
             'bg-red-500/10 text-red-400 border-red-500/20'
           }`}>
-            {syncStatus === 'creating' && 'Łączenie z npoint.io...'}
-            {syncStatus === 'loading' && 'Trwa transfer danych...'}
-            {syncStatus === 'success' && 'SUKCES: Połączono z chmurą!'}
-            {syncStatus === 'error' && 'BŁĄD: Serwer nie odpowiada. Spróbuj za 10 sekund.'}
+            {syncStatus === 'creating' && 'Łączenie z serwerem npoint...'}
+            {syncStatus === 'loading' && 'Trwa przesyłanie danych...'}
+            {syncStatus === 'success' && 'SUKCES: Operacja zakończona!'}
+            {syncStatus === 'error' && 'BŁĄD: Nie udało się połączyć. Sprawdź konsolę (F12).'}
           </div>
         )}
       </div>
 
       <div className="bg-amber-500/5 border border-amber-500/20 p-6 rounded-3xl">
         <h4 className="text-amber-400 font-black text-xs uppercase tracking-[0.2em] flex items-center gap-2 mb-3">
-          <AlertTriangle size={16} /> Pomoc techniczna
+          <AlertTriangle size={16} /> Rozwiązywanie problemów
         </h4>
         <ol className="text-[11px] text-amber-200/60 leading-relaxed font-medium space-y-2 list-decimal ml-4">
-          <li>Jeśli masz błąd serwera, odczekaj chwilę – darmowe serwery mają limity zapytań na minutę.</li>
-          <li>Upewnij się, że nie masz włączonego AdBlocka, który mógłby blokować ruch do <strong>npoint.io</strong>.</li>
-          <li>ID jest wrażliwe na wielkość liter.</li>
+          <li>Jeśli nadal masz błąd, spróbuj odświeżyć stronę (F5) i spróbować ponownie.</li>
+          <li>Upewnij się, że Twoja sieć firmowa/szkolna nie blokuje domeny <strong>api.npoint.io</strong>.</li>
+          <li>Jeśli masz ID z innego urządzenia, wpisz je ręcznie i kliknij <strong>Pobierz (Pull)</strong>.</li>
         </ol>
       </div>
     </div>
