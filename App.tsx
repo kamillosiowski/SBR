@@ -4,21 +4,23 @@ import { Layout } from './components/Layout';
 import { EntryForm } from './components/EntryForm';
 import { HistoryView } from './components/HistoryView';
 import { Dashboard } from './components/Dashboard';
+import { SettingsView } from './components/SettingsView';
 import { Measurement } from './types';
 import { storageService } from './services/storageService';
 
-type View = 'dashboard' | 'add' | 'history';
+type View = 'dashboard' | 'add' | 'history' | 'settings';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+  const loadData = async () => {
+    const data = await storageService.getHistory();
+    setMeasurements(data);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      const data = await storageService.getHistory();
-      setMeasurements(data);
-    };
     loadData();
 
     const handleOnline = () => setIsOnline(true);
@@ -35,16 +37,14 @@ const App: React.FC = () => {
 
   const handleAddMeasurement = async (m: Measurement) => {
     await storageService.saveMeasurement(m);
-    const updated = await storageService.getHistory();
-    setMeasurements(updated);
+    await loadData();
     setCurrentView('dashboard');
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Czy na pewno chcesz usunąć ten wpis?')) {
       await storageService.deleteMeasurement(id);
-      const updated = await storageService.getHistory();
-      setMeasurements(updated);
+      await loadData();
     }
   };
 
@@ -62,6 +62,9 @@ const App: React.FC = () => {
       )}
       {currentView === 'history' && (
         <HistoryView measurements={measurements} onDelete={handleDelete} />
+      )}
+      {currentView === 'settings' && (
+        <SettingsView onDataRefresh={loadData} />
       )}
     </Layout>
   );

@@ -6,7 +6,8 @@ import {
   History, 
   Wifi, 
   WifiOff, 
-  Droplets 
+  Droplets,
+  Settings
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -18,29 +19,14 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, isOnline }) => {
   useEffect(() => {
-    // Funkcja zapewniająca, że aplikacja zawsze uruchamia się w trybie ciemnym
-    // zgodnie z wymaganiem: domyślnie tryb ciemny + sprawdzenie preferencji
     const root = window.document.documentElement;
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    // Jeśli klasa dark nie jest jeszcze ustawiona, a system preferuje ciemny lub po prostu wymuszamy domyślny dark
     if (!root.classList.contains('dark')) {
       root.classList.add('dark');
     }
-
-    // Opcjonalnie: nasłuchiwanie na zmiany w systemie (choć wymuszamy dark jako domyślny)
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => {
-      if (e.matches) root.classList.add('dark');
-    };
-    mediaQuery.addEventListener('change', handleChange);
-    
-    return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-50 selection:bg-blue-500/30">
-      {/* Top Header */}
       <header className="bg-slate-900/80 backdrop-blur-md text-white p-4 shadow-xl sticky top-0 z-50 flex justify-between items-center border-b border-slate-800">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-900/20">
@@ -59,18 +45,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         </div>
       </header>
 
-      {/* Main Content with Transition */}
       <main key={currentView} className="view-transition flex-1 container mx-auto px-4 py-6 mb-24 max-w-4xl">
         {children}
       </main>
 
-      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800 flex justify-around items-center p-2 pb-safe shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.5)] z-50">
         <NavButton 
           active={currentView === 'dashboard'} 
           onClick={() => setView('dashboard')}
           icon={<Activity size={24} />}
           label="Status"
+        />
+        <NavButton 
+          active={currentView === 'history'} 
+          onClick={() => setView('history')}
+          icon={<History size={24} />}
+          label="Historia"
         />
         <NavButton 
           active={currentView === 'add'} 
@@ -80,10 +70,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
           highlight
         />
         <NavButton 
-          active={currentView === 'history'} 
-          onClick={() => setView('history')}
-          icon={<History size={24} />}
-          label="Historia"
+          active={currentView === 'settings'} 
+          onClick={() => setView('settings')}
+          icon={<Settings size={24} />}
+          label="Opcje"
         />
       </nav>
     </div>

@@ -19,14 +19,13 @@ export interface Measurement {
   no3?: number;
   caco3?: number;
   mlss?: number; 
-  temperature?: number; // Nowe pole dla czujników (np. Tuya)
+  temperature?: number;
   note?: string;
   alerts: MeasurementAlert[];
   isSynced: boolean;
 }
 
-export interface MLSSCalculation {
-  a: number; // Mass dry filter
-  b: number; // Mass filter + sludge
-  result: number;
+export interface SBRSettings {
+  syncId: string;
+  lastSync?: number;
 }
