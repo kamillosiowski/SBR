@@ -4,8 +4,10 @@ import { Measurement, SBRSettings } from '../types';
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// Używamy publicznego, stabilnego API Key-Value, które pozwala na bezpośredni dostęp bez "tworzenia" bazy
-const API_URL = 'https://api.keyvalue.xyz';
+// Używamy stabilnego publicznego bucketu KVDB. 
+// Dane są trzymane pod kluczem: sbr_v2_{TWOJE_HASLO}
+const BUCKET_ID = '8pY6pYxRjPzQe9W1u4M9jA'; // Publiczny bucket dedykowany dla SBR Monitor
+const API_URL = `https://kvdb.io/${BUCKET_ID}`;
 
 export const storageService = {
   async saveMeasurement(measurement: Measurement): Promise<void> {
@@ -14,7 +16,7 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 
     const settings = this.getSettings();
-    if (settings.syncId && settings.syncId.length > 3) {
+    if (settings.syncId && settings.syncId.length >= 3) {
       this.pushToCloud(data, settings.syncId).catch(() => {});
     }
   },
@@ -25,7 +27,7 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
 
     const settings = this.getSettings();
-    if (settings.syncId && settings.syncId.length > 3) {
+    if (settings.syncId && settings.syncId.length >= 3) {
       this.pushToCloud(filtered, settings.syncId).catch(() => {});
     }
   },
@@ -71,30 +73,31 @@ export const storageService = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  // Teraz push/pull działa na Twoim kluczu - bez potrzeby "tworzenia" bazy na serwerze
   async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
-    if (!syncId || syncId.length < 4) return false;
+    if (!syncId || syncId.length < 3) return false;
     try {
-      // Prefiks sbr_ chroni przed kolizjami z innymi aplikacjami używającymi tego API
-      const response = await fetch(`${API_URL}/sbr_${syncId}`, {
+      const key = `sbr_v2_${syncId.toLowerCase()}`;
+      const response = await fetch(`${API_URL}/${key}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
       return response.ok;
     } catch (e) {
+      console.error('Push failed', e);
       return false;
     }
   },
 
   async pullFromCloud(syncId: string): Promise<Measurement[] | null> {
-    if (!syncId || syncId.length < 4) return null;
+    if (!syncId || syncId.length < 3) return null;
     try {
-      const response = await fetch(`${API_URL}/sbr_${syncId}`);
+      const key = `sbr_v2_${syncId.toLowerCase()}`;
+      const response = await fetch(`${API_URL}/${key}`);
       if (!response.ok) return null;
       const data = await response.json();
       return Array.isArray(data) ? data : null;
     } catch (e) {
+      console.error('Pull failed', e);
       return null;
     }
   },
@@ -108,5 +111,22 @@ export const storageService = {
     a.download = `sbr_backup_${new Date().toISOString().split('T')[0]}.sbr`;
     a.click();
     URL.revokeObjectURL(url);
+  },
+
+  // Pobiera całą bazę jako ciąg znaków Base64 do ręcznego przesłania
+  getRawBackupString(): string {
+    const data = localStorage.getItem(STORAGE_KEY) || '[]';
+    return btoa(unescape(encodeURIComponent(data)));
+  },
+
+  // Wczytuje bazę z ciągu znaków Base64
+  async importFromRawString(base64: string): Promise<number> {
+    try {
+      const json = decodeURIComponent(escape(atob(base64)));
+      const data = JSON.parse(json);
+      return await this.mergeHistory(data);
+    } catch {
+      throw new Error('Nieprawidłowy format kodu synchronizacji');
+    }
   }
 };

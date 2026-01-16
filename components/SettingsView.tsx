@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { storageService } from '../services/storageService';
 import { 
   CloudDownload, 
@@ -12,11 +12,12 @@ import {
   Loader2, 
   Zap,
   FileJson,
-  QrCode,
   Smartphone,
   Trash2,
   AlertCircle,
-  ArrowRightLeft
+  ArrowRightLeft,
+  ClipboardList,
+  Download
 } from 'lucide-react';
 import { SBRSettings } from '../types';
 
@@ -28,173 +29,179 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
   const [settings, setSettings] = useState<SBRSettings>(storageService.getSettings());
   const [copied, setCopied] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [showQR, setShowQR] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateSyncId = (id: string) => {
+    // Czyścimy ID ze znaków specjalnych
     const cleanId = id.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     const newSettings = { ...settings, syncId: cleanId };
     setSettings(newSettings);
     storageService.saveSettings(newSettings);
   };
 
-  const generateRandomKey = () => {
-    const random = Math.random().toString(36).substring(2, 12);
-    updateSyncId(random);
-  };
-
   const handlePush = async () => {
-    if (!settings.syncId || settings.syncId.length < 4) return alert('Klucz musi mieć min. 4 znaki');
+    if (!settings.syncId || settings.syncId.length < 3) return alert('Wpisz hasło (min. 3 znaki)');
     setSyncStatus('loading');
     const data = await storageService.getHistory();
     const ok = await storageService.pushToCloud(data, settings.syncId);
     setSyncStatus(ok ? 'success' : 'error');
     if (ok) {
       setTimeout(() => setSyncStatus('idle'), 2000);
+    } else {
+      alert('Błąd wysyłania. Sprawdź internet.');
     }
   };
 
   const handlePull = async () => {
-    if (!settings.syncId || settings.syncId.length < 4) return alert('Klucz musi mieć min. 4 znaki');
+    if (!settings.syncId || settings.syncId.length < 3) return alert('Wpisz hasło (min. 3 znaki)');
     setSyncStatus('loading');
     const remoteData = await storageService.pullFromCloud(settings.syncId);
     if (remoteData) {
       const added = await storageService.mergeHistory(remoteData);
       setSyncStatus('success');
       onDataRefresh();
-      alert(`Pobrano dane. Dodano ${added} nowych pomiarów.`);
+      alert(`SUKCES! Pobrano dane. Dodano ${added} nowych wpisów.`);
     } else {
       setSyncStatus('error');
-      alert('Nie znaleziono danych pod tym kluczem w chmurze.');
+      alert('NIE ZNALEZIONO DANYCH. Upewnij się, że na drugim telefonie kliknąłeś "WYŚLIJ" używając tego samego hasła.');
     }
     setTimeout(() => setSyncStatus('idle'), 2000);
   };
 
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${settings.syncId}`;
+  const handleManualImport = async () => {
+    if (!manualCode) return;
+    try {
+      const added = await storageService.importFromRawString(manualCode);
+      onDataRefresh();
+      alert(`Zaimportowano ${added} wpisów.`);
+      setManualCode('');
+    } catch (e) {
+      alert('Błędny kod!');
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-28">
-      <header className="flex items-center justify-between px-2">
+      <header className="px-2">
         <h2 className="text-2xl font-black text-slate-100 uppercase flex items-center gap-3 tracking-tighter">
-          <ArrowRightLeft className="text-blue-500" /> Sync Manager
+          <ShieldCheck className="text-blue-500" /> Centrum Synchronizacji
         </h2>
-        {settings.syncId.length >= 4 && (
-          <div className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full border border-blue-500/20 flex items-center gap-2">
-            <Zap size={10} className="fill-blue-400" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Active</span>
-          </div>
-        )}
+        <p className="text-[10px] text-slate-500 font-bold uppercase mt-1">Łączenie telefonów bez kont i logowania</p>
       </header>
 
-      {/* Cloud Sync - Nowy model */}
-      <div className="bg-slate-900 rounded-[2.5rem] p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="bg-blue-600/20 p-3 rounded-2xl">
-            <ShieldCheck className="text-blue-400" size={24} />
+      {/* CLOUD SECTION */}
+      <div className="bg-slate-900 rounded-[2rem] p-6 border border-slate-800 shadow-2xl">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="bg-blue-600/20 p-2 rounded-xl">
+            <Key className="text-blue-400" size={20} />
           </div>
-          <div>
-            <h3 className="font-black text-slate-100 uppercase text-xs tracking-widest">Twój Prywatny Kanał</h3>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Wpisz dowolne hasło, aby połączyć telefony</p>
-          </div>
+          <h3 className="font-black text-slate-100 uppercase text-xs tracking-widest">Twoje Wspólne Hasło</h3>
         </div>
 
         <div className="space-y-4">
-          <div className="relative group">
+          <div className="relative">
             <input 
               type="text" 
               value={settings.syncId}
               onChange={(e) => updateSyncId(e.target.value)}
-              placeholder="np. oczyszczalnia123"
-              className="w-full bg-slate-950 border-2 border-slate-800 rounded-3xl p-5 text-blue-400 font-black mono focus:border-blue-500 outline-none transition-all uppercase text-lg pr-32"
+              placeholder="np. oczyszczalnia_jan"
+              className="w-full bg-slate-950 border-2 border-slate-800 rounded-2xl p-4 text-blue-400 font-black focus:border-blue-500 outline-none transition-all uppercase text-center text-lg"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-2">
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(settings.syncId);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-                className="p-3 bg-slate-800 rounded-2xl text-slate-400 hover:text-white active:scale-90 transition-all"
-              >
-                {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} />}
-              </button>
-              <button 
-                onClick={() => setShowQR(!showQR)}
-                className={`p-3 rounded-2xl transition-all active:scale-90 ${showQR ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-              >
-                <QrCode size={18} />
-              </button>
-            </div>
+            <p className="text-[9px] text-slate-600 font-black uppercase text-center mt-2 tracking-widest">Wymyśl hasło i wpisz je na obu telefonach</p>
           </div>
 
-          {showQR && settings.syncId.length >= 4 && (
-            <div className="flex flex-col items-center py-6 bg-white rounded-3xl animate-in zoom-in-95 duration-300">
-              <img src={qrUrl} alt="QR Code Sync" className="w-40 h-40" />
-              <p className="mt-3 text-[10px] font-black uppercase text-slate-950">Zeskanuj, aby przejąć klucz</p>
-            </div>
-          )}
-
-          {!settings.syncId && (
-            <button 
-              onClick={generateRandomKey}
-              className="w-full py-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-blue-400 transition-colors"
-            >
-              Wygeneruj losowy klucz bezpieczny
-            </button>
-          )}
-
-          <div className="grid grid-cols-2 gap-4 mt-6">
+          <div className="grid grid-cols-2 gap-3 pt-2">
             <button 
               onClick={handlePush}
-              disabled={syncStatus === 'loading' || settings.syncId.length < 4}
-              className="flex flex-col items-center gap-3 p-6 bg-slate-950 border border-slate-800 rounded-[2rem] hover:border-blue-500/50 transition-all group active:scale-95 disabled:opacity-20"
+              disabled={syncStatus === 'loading' || settings.syncId.length < 3}
+              className="flex flex-col items-center gap-2 p-5 bg-blue-600 rounded-2xl hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-20"
             >
-              {syncStatus === 'loading' ? <Loader2 className="animate-spin text-blue-500" /> : <CloudUpload size={28} className="text-blue-500 group-hover:scale-110 transition-transform" />}
-              <span className="font-black text-[10px] uppercase tracking-widest text-slate-100">Wypchnij (Push)</span>
+              {syncStatus === 'loading' ? <Loader2 className="animate-spin" /> : <CloudUpload size={24} />}
+              <span className="font-black text-[9px] uppercase tracking-widest text-white">Wyślij (PUSH)</span>
             </button>
 
             <button 
               onClick={handlePull}
-              disabled={syncStatus === 'loading' || settings.syncId.length < 4}
-              className="flex flex-col items-center gap-3 p-6 bg-slate-950 border border-slate-800 rounded-[2rem] hover:border-emerald-500/50 transition-all group active:scale-95 disabled:opacity-20"
+              disabled={syncStatus === 'loading' || settings.syncId.length < 3}
+              className="flex flex-col items-center gap-2 p-5 bg-emerald-600 rounded-2xl hover:bg-emerald-500 transition-all active:scale-95 disabled:opacity-20"
             >
-              {syncStatus === 'loading' ? <Loader2 className="animate-spin text-emerald-500" /> : <CloudDownload size={28} className="text-emerald-500 group-hover:scale-110 transition-transform" />}
-              <span className="font-black text-[10px] uppercase tracking-widest text-slate-100">Pobierz (Pull)</span>
+              {syncStatus === 'loading' ? <Loader2 className="animate-spin" /> : <CloudDownload size={24} />}
+              <span className="font-black text-[9px] uppercase tracking-widest text-white">Pobierz (PULL)</span>
             </button>
           </div>
         </div>
 
         {syncStatus === 'success' && (
-          <div className="mt-6 p-4 bg-green-500/10 border border-green-500/20 rounded-2xl text-center text-green-400 text-[10px] font-black uppercase tracking-widest animate-in fade-in duration-300">
-            Pomyślnie zsynchronizowano z chmurą!
+          <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-center text-green-400 text-[10px] font-black uppercase">
+            Gotowe! Dane zsynchronizowane.
           </div>
         )}
       </div>
 
-      {/* Local Section */}
-      <div className="bg-slate-900 rounded-[2.5rem] p-8 border border-slate-800">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="bg-amber-600/20 p-3 rounded-2xl">
-            <Smartphone className="text-amber-400" size={24} />
+      {/* MANUAL SYNC SECTION */}
+      <div className="bg-slate-900 rounded-[2rem] p-6 border border-slate-800">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="bg-amber-600/20 p-2 rounded-xl">
+            <ClipboardList className="text-amber-400" size={20} />
           </div>
-          <h3 className="font-black text-slate-100 uppercase text-xs tracking-widest">Transfer przez plik</h3>
+          <h3 className="font-black text-slate-100 uppercase text-xs tracking-widest">Sync ręczny (bez internetu)</h3>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <button 
-            onClick={() => storageService.exportToFile()}
-            className="flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-amber-500 transition-all active:scale-[0.98]"
+            onClick={() => {
+              const str = storageService.getRawBackupString();
+              navigator.clipboard.writeText(str);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+              alert('Baza skopiowana do schowka! Wklej ją na drugim telefonie.');
+            }}
+            className="w-full flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-2xl hover:border-amber-500 transition-all"
           >
-            <span className="text-[10px] font-black uppercase text-slate-300">Eksportuj (.sbr)</span>
-            <FileJson size={20} className="text-amber-500" />
+            <span className="text-[10px] font-black uppercase text-slate-300">Kopiuj całą bazę</span>
+            {copied ? <Check size={18} className="text-green-500" /> : <Copy size={18} className="text-amber-500" />}
           </button>
 
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="Wklej kod tutaj..."
+              className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl p-3 text-[10px] text-slate-400 font-mono outline-none focus:border-blue-500"
+            />
+            <button 
+              onClick={handleManualImport}
+              className="bg-slate-800 px-4 rounded-2xl text-blue-400 active:scale-95"
+            >
+              <Download size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* FILE SECTION */}
+      <div className="bg-slate-900 rounded-[2rem] p-6 border border-slate-800">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="bg-slate-700 p-2 rounded-xl">
+            <FileJson className="text-slate-400" size={20} />
+          </div>
+          <h3 className="font-black text-slate-100 uppercase text-xs tracking-widest">Kopia plikowa (.sbr)</h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button 
+            onClick={() => storageService.exportToFile()}
+            className="flex items-center justify-center gap-2 p-4 bg-slate-950 border border-slate-800 rounded-2xl text-[10px] font-black uppercase text-slate-300 hover:border-slate-500"
+          >
+            <Download size={14} /> Eksportuj plik
+          </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-blue-500 transition-all active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 p-4 bg-slate-950 border border-slate-800 rounded-2xl text-[10px] font-black uppercase text-slate-300 hover:border-slate-500"
           >
-            <span className="text-[10px] font-black uppercase text-slate-300">Importuj plik</span>
-            <RefreshCw size={20} className="text-blue-500" />
+            <RefreshCw size={14} /> Importuj plik
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -208,9 +215,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
                     const added = await storageService.mergeHistory(data);
                     onDataRefresh();
                     alert(`Import sukces! Dodano ${added} nowych pomiarów.`);
-                  } catch {
-                    alert('Niepoprawny format pliku.');
-                  }
+                  } catch { alert('Błąd pliku!'); }
                 };
                 reader.readAsText(file);
               }} 
@@ -221,24 +226,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
         </div>
       </div>
 
-      <div className="px-6 flex flex-col gap-4">
-        <div className="flex items-center gap-3 p-4 bg-slate-900/50 border border-slate-800 rounded-2xl">
-          <AlertCircle size={20} className="text-slate-600 shrink-0" />
-          <p className="text-[9px] text-slate-500 font-bold leading-relaxed uppercase">
-            Każdy pomiar zapisany na telefonie automatycznie leci do chmury pod Twój klucz. Użyj tego samego klucza na innym telefonie i kliknij "Pobierz", aby połączyć bazy.
-          </p>
-        </div>
-
+      <div className="px-4">
         <button 
           onClick={() => {
-            if(confirm('CZYŚCISZ WSZYSTKO LOKALNIE. NA PEWNO?')) {
+            if(confirm('USUWANIE WSZYSTKIEGO. NA PEWNO?')) {
               storageService.setHistory([]);
               onDataRefresh();
             }
           }}
-          className="w-full flex items-center justify-center gap-2 p-6 text-red-500/50 hover:text-red-500 transition-colors font-black text-[10px] uppercase tracking-widest bg-red-500/5 rounded-3xl border border-red-500/10"
+          className="w-full p-4 text-red-500/50 hover:text-red-500 transition-colors font-black text-[10px] uppercase tracking-widest bg-red-500/5 rounded-2xl border border-red-500/10 flex items-center justify-center gap-2"
         >
-          <Trash2 size={16} /> Usuń dane z tego urządzenia
+          <Trash2 size={16} /> Wyczyść dane z telefonu
         </button>
       </div>
     </div>
