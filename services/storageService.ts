@@ -4,8 +4,7 @@ import { Measurement, SBRSettings } from '../types';
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// Uwaga: To jest uproszczony endpoint do demonstracji. 
-// W docelowej wersji zalecane jest użycie Netlify Functions + Supabase/MongoDB.
+// Publiczny serwis JSON bin do darmowej synchronizacji
 const SYNC_API_BASE = 'https://api.npoint.io/'; 
 
 export const storageService = {
@@ -19,7 +18,9 @@ export const storageService = {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Sortowanie po dacie (najnowsze na początku)
+      return Array.isArray(parsed) ? parsed.sort((a, b) => b.timestamp - a.timestamp) : [];
     } catch {
       return [];
     }
@@ -38,16 +39,21 @@ export const storageService = {
   getSettings(): SBRSettings {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return { syncId: '' };
-    return JSON.parse(raw);
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return { syncId: '' };
+    }
   },
 
   saveSettings(settings: SBRSettings): void {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  // Funkcja Cloud Sync
   async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
+    if (!syncId) return false;
     try {
+      // W npoint.io POST na id aktualizuje dane
       const response = await fetch(`${SYNC_API_BASE}${syncId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,10 +67,12 @@ export const storageService = {
   },
 
   async pullFromCloud(syncId: string): Promise<Measurement[] | null> {
+    if (!syncId) return null;
     try {
       const response = await fetch(`${SYNC_API_BASE}${syncId}`);
       if (!response.ok) return null;
-      return await response.json();
+      const data = await response.json();
+      return Array.isArray(data) ? data : null;
     } catch (e) {
       console.error('Cloud Pull Error:', e);
       return null;

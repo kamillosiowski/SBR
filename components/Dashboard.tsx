@@ -8,11 +8,10 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  Legend
+  ResponsiveContainer
 } from 'recharts';
 import { format } from 'date-fns';
-import { AlertCircle, Plus, Activity, Droplets, Clock, TrendingUp, Thermometer, ChevronLeft, ArrowRight } from 'lucide-react';
+import { AlertCircle, Plus, Activity, Droplets, Clock, Thermometer, ChevronLeft, ArrowRight } from 'lucide-react';
 import { SAMPLING_POINTS, THRESHOLDS } from '../constants';
 
 interface DashboardProps {
@@ -34,7 +33,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ measurements, onAddClick }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-black text-slate-100 tracking-tight uppercase">Dashboard</h2>
         <button 
@@ -68,18 +67,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ measurements, onAddClick }
           value={measurements.length > 0 ? format(measurements[0].timestamp, 'HH:mm') : '--:--'} 
           icon={<Clock className="text-slate-400" size={16} />} 
         />
-      </div>
-
-      {/* Integration Mockup: Tuya Sensors */}
-      <div className="bg-slate-900/50 p-6 rounded-3xl border border-dashed border-slate-800">
-        <h3 className="font-black text-slate-500 mb-4 flex items-center gap-2 uppercase text-[10px] tracking-widest">
-          <Thermometer size={14} className="text-blue-500" /> Czujniki Live
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SensorMock label="SBR2 Temp" value="18.5" unit="°C" status="online" />
-          <SensorMock label="SBR3 Temp" value="18.2" unit="°C" status="online" />
-          <SensorMock label="SBR4 Temp" value="---" unit="°C" status="offline" />
-        </div>
       </div>
 
       {/* Point Status Grid */}
@@ -124,9 +111,9 @@ const DetailedPointView: React.FC<{point: SamplingPoint, measurements: Measureme
   }));
 
   const ChartSection = ({ title, dataKey, color, unit }: { title: string, dataKey: string, color: string, unit?: string }) => (
-    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+    <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl">
       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{title} {unit && `(${unit})`}</h4>
-      <div className="h-[180px] w-full">
+      <div className="h-[150px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={sortedData}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
@@ -148,41 +135,30 @@ const DetailedPointView: React.FC<{point: SamplingPoint, measurements: Measureme
         </button>
         <div>
           <h2 className="text-2xl font-black text-slate-100 tracking-tight uppercase">{point}</h2>
-          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Analiza trendów i historii</p>
+          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest italic">Historia trendów parametrów</p>
         </div>
       </div>
 
       {sortedData.length > 1 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-8">
           <ChartSection title="pH" dataKey="ph" color="#3b82f6" />
-          <ChartSection title="NH4" dataKey="nh4" color="#ef4444" unit="mg/l" />
-          <ChartSection title="NO3" dataKey="no3" color="#a855f7" unit="mg/l" />
+          <ChartSection title="NH4 (Amoniak)" dataKey="nh4" color="#ef4444" unit="mg/l" />
+          <ChartSection title="NO3 (Azotany)" dataKey="no3" color="#a855f7" unit="mg/l" />
           <ChartSection title="Temperatura" dataKey="temp" color="#f59e0b" unit="°C" />
           <ChartSection title="ChZT" dataKey="chzt" color="#10b981" unit="mg/l" />
-          <ChartSection title="Azot Ogólny" dataKey="tn" color="#6366f1" unit="mg/l" />
-          <ChartSection title="Fosfor Ogólny" dataKey="tp" color="#ec4899" unit="mg/l" />
-          <ChartSection title="MLSS" dataKey="mlss" color="#94a3b8" unit="g/l" />
+          <ChartSection title="Azot Ogólny (TN)" dataKey="tn" color="#6366f1" unit="mg/l" />
+          <ChartSection title="Fosfor Ogólny (TP)" dataKey="tp" color="#ec4899" unit="mg/l" />
+          <ChartSection title="MLSS (Osad)" dataKey="mlss" color="#94a3b8" unit="g/l" />
+          <ChartSection title="CaCO3 (Zasadowość)" dataKey="caco3" color="#64748b" />
         </div>
       ) : (
         <div className="py-24 text-center bg-slate-900 rounded-3xl border-2 border-dashed border-slate-800 text-slate-600 font-black uppercase text-xs tracking-widest">
-          Za mało danych do wyświetlenia wykresów
+          Zbyt mała liczba pomiarów (min. 2), aby wygenerować wykresy trendów.
         </div>
       )}
     </div>
   );
 };
-
-const SensorMock: React.FC<{label: string, value: string, unit: string, status: 'online' | 'offline'}> = ({ label, value, unit, status }) => (
-  <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 flex justify-between items-center">
-    <div className="flex flex-col">
-      <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">{label}</span>
-      <span className={`text-lg font-black mono ${status === 'online' ? 'text-blue-400' : 'text-slate-700'}`}>
-        {value} <span className="text-[10px] font-normal">{unit}</span>
-      </span>
-    </div>
-    <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-800'}`} />
-  </div>
-);
 
 const PointStatusCard: React.FC<{
   point: string; 
@@ -191,10 +167,6 @@ const PointStatusCard: React.FC<{
 }> = ({ point, latest, onClick }) => {
   const hasAlert = latest && latest.alerts.length > 0;
   
-  const phStatus = latest?.ph !== undefined 
-    ? (latest.ph < THRESHOLDS.PH_MIN || latest.ph > THRESHOLDS.PH_MAX ? 'error' : 'success') 
-    : 'none';
-
   return (
     <div 
       onClick={onClick}
@@ -202,10 +174,10 @@ const PointStatusCard: React.FC<{
     >
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h4 className="font-black text-slate-100 text-lg tracking-tight group-hover:text-blue-400 transition-colors">{point}</h4>
+          <h4 className="font-black text-slate-100 text-lg tracking-tight group-hover:text-blue-400 transition-colors uppercase">{point}</h4>
           {latest ? (
             <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">
-              Ostatni pomiar: {format(latest.timestamp, 'HH:mm, d MMM')}
+              Ost: {format(latest.timestamp, 'HH:mm, dd/MM')}
             </p>
           ) : (
             <p className="text-[9px] text-slate-700 font-black uppercase tracking-widest italic">Brak danych</p>
@@ -219,15 +191,15 @@ const PointStatusCard: React.FC<{
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2.5">
-        <MiniIndicator label="pH" value={latest?.ph} status={phStatus} />
+      <div className="grid grid-cols-3 gap-2">
+        <MiniIndicator label="pH" value={latest?.ph} status={latest?.ph && (latest.ph < THRESHOLDS.PH_MIN || latest.ph > THRESHOLDS.PH_MAX) ? 'error' : 'none'} />
         <MiniIndicator label="NH4" value={latest?.nh4} unit="mg/l" status={latest?.nh4 && latest.nh4 > THRESHOLDS.NH4_MAX ? 'error' : 'none'} />
         <MiniIndicator label="NO3" value={latest?.no3} unit="mg/l" status="none" />
-        <MiniIndicator label="COD" value={latest?.chzt} unit="mg/l" status="none" />
-        <MiniIndicator label="TN" value={latest?.tn} unit="mg/l" status="none" />
-        <MiniIndicator label="TP" value={latest?.tp} unit="mg/l" status="none" />
+        <MiniIndicator label="ChZT" value={latest?.chzt} status="none" />
+        <MiniIndicator label="TN" value={latest?.tn} status="none" />
+        <MiniIndicator label="TP" value={latest?.tp} status="none" />
         <MiniIndicator label="MLSS" value={latest?.mlss} unit="g/l" status="none" />
-        <MiniIndicator label="Ca" value={latest?.caco3} status="none" />
+        <MiniIndicator label="Zas" value={latest?.caco3} status="none" />
         <MiniIndicator label="Temp" value={latest?.temperature} unit="°C" status="none" />
       </div>
     </div>
@@ -242,10 +214,10 @@ const MiniIndicator: React.FC<{label: string; value?: number; unit?: string; sta
   };
 
   return (
-    <div className={`p-2 rounded-xl border ${colors[status]} flex flex-col items-center justify-center transition-colors`}>
-      <span className="text-[7px] font-black uppercase opacity-60 mb-0.5 tracking-tighter leading-none">{label}</span>
-      <span className="text-[11px] font-black mono tracking-tighter leading-none">
-        {value !== undefined ? (value < 10 && label !== 'COD' ? value.toFixed(2) : value.toFixed(0)) : '--'}
+    <div className={`p-2 rounded-xl border flex flex-col items-center justify-center transition-colors h-14 ${colors[status]}`}>
+      <span className="text-[7px] font-black uppercase opacity-60 mb-0.5 tracking-tighter text-center leading-none">{label}</span>
+      <span className="text-[10px] font-black mono tracking-tighter leading-none">
+        {value !== undefined ? (value < 10 && label !== 'ChZT' && label !== 'TN' && label !== 'Zas' ? value.toFixed(2) : value.toFixed(1)) : '--'}
         {value !== undefined && unit && <span className="text-[6px] ml-0.5 font-normal opacity-50">{unit}</span>}
       </span>
     </div>
@@ -258,6 +230,6 @@ const StatCard: React.FC<{label: string; value: string | number; icon: React.Rea
       {icon}
       <span className={`text-[9px] font-black uppercase tracking-widest ${alert ? 'text-red-400' : 'text-slate-500'}`}>{label}</span>
     </div>
-    <div className={`text-2xl font-black tracking-tight ${alert ? 'text-red-500' : 'text-slate-100'}`}>{value}</div>
+    <div className={`text-xl font-black tracking-tight ${alert ? 'text-red-500' : 'text-slate-100'}`}>{value}</div>
   </div>
 );
