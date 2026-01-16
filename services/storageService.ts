@@ -4,10 +4,8 @@ import { Measurement, SBRSettings } from '../types';
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// Używamy stabilnego publicznego bucketu KVDB. 
-// Dane są trzymane pod kluczem: sbr_v2_{TWOJE_HASLO}
-const BUCKET_ID = '8pY6pYxRjPzQe9W1u4M9jA'; // Publiczny bucket dedykowany dla SBR Monitor
-const API_URL = `https://kvdb.io/${BUCKET_ID}`;
+// npoint.io to jeden z najstabilniejszych darmowych JSON storage, świetny do "Cloud Sync"
+const API_BASE = 'https://api.npoint.io';
 
 export const storageService = {
   async saveMeasurement(measurement: Measurement): Promise<void> {
@@ -16,7 +14,7 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 
     const settings = this.getSettings();
-    if (settings.syncId && settings.syncId.length >= 3) {
+    if (settings.syncId && settings.autoSyncEnabled) {
       this.pushToCloud(data, settings.syncId).catch(() => {});
     }
   },
@@ -27,7 +25,7 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
 
     const settings = this.getSettings();
-    if (settings.syncId && settings.syncId.length >= 3) {
+    if (settings.syncId && settings.autoSyncEnabled) {
       this.pushToCloud(filtered, settings.syncId).catch(() => {});
     }
   },
@@ -61,11 +59,16 @@ export const storageService = {
 
   getSettings(): SBRSettings {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { syncId: '' };
+    if (!raw) return { syncId: '', autoSyncEnabled: false };
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return {
+        syncId: parsed.syncId || '',
+        autoSyncEnabled: parsed.autoSyncEnabled ?? false,
+        lastSync: parsed.lastSync
+      };
     } catch {
-      return { syncId: '' };
+      return { syncId: '', autoSyncEnabled: false };
     }
   },
 
@@ -73,31 +76,49 @@ export const storageService = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
-    if (!syncId || syncId.length < 3) return false;
+  // Tworzy nowy "Vault" w chmurze i zwraca jego ID
+  async createNewVault(): Promise<string | null> {
     try {
-      const key = `sbr_v2_${syncId.toLowerCase()}`;
-      const response = await fetch(`${API_URL}/${key}`, {
+      const response = await fetch(API_BASE, {
         method: 'POST',
-        body: JSON.stringify(data)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ measurements: [] })
       });
+      if (!response.ok) return null;
+      const result = await response.json();
+      return result.id || null;
+    } catch (e) {
+      console.error('Vault creation failed', e);
+      return null;
+    }
+  },
+
+  async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
+    if (!syncId) return false;
+    try {
+      const response = await fetch(`${API_BASE}/${syncId}`, {
+        method: 'POST', // npoint używa POST do aktualizacji
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ measurements: data })
+      });
+      if (response.ok) {
+        const settings = this.getSettings();
+        this.saveSettings({ ...settings, lastSync: Date.now() });
+      }
       return response.ok;
     } catch (e) {
-      console.error('Push failed', e);
       return false;
     }
   },
 
   async pullFromCloud(syncId: string): Promise<Measurement[] | null> {
-    if (!syncId || syncId.length < 3) return null;
+    if (!syncId) return null;
     try {
-      const key = `sbr_v2_${syncId.toLowerCase()}`;
-      const response = await fetch(`${API_URL}/${key}`);
+      const response = await fetch(`${API_BASE}/${syncId}`);
       if (!response.ok) return null;
-      const data = await response.json();
-      return Array.isArray(data) ? data : null;
+      const result = await response.json();
+      return result.measurements || null;
     } catch (e) {
-      console.error('Pull failed', e);
       return null;
     }
   },
@@ -113,20 +134,18 @@ export const storageService = {
     URL.revokeObjectURL(url);
   },
 
-  // Pobiera całą bazę jako ciąg znaków Base64 do ręcznego przesłania
   getRawBackupString(): string {
     const data = localStorage.getItem(STORAGE_KEY) || '[]';
     return btoa(unescape(encodeURIComponent(data)));
   },
 
-  // Wczytuje bazę z ciągu znaków Base64
   async importFromRawString(base64: string): Promise<number> {
     try {
       const json = decodeURIComponent(escape(atob(base64)));
       const data = JSON.parse(json);
       return await this.mergeHistory(data);
     } catch {
-      throw new Error('Nieprawidłowy format kodu synchronizacji');
+      throw new Error('Format error');
     }
   }
 };

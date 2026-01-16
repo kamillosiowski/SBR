@@ -28,4 +28,5 @@ export interface Measurement {
 export interface SBRSettings {
   syncId: string;
   lastSync?: number;
+  autoSyncEnabled?: boolean;
 }

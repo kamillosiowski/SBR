@@ -20,9 +20,31 @@ const App: React.FC = () => {
     setMeasurements(data);
   };
 
+  // Automatyczna synchronizacja z chmurą przy starcie i co 60s
   useEffect(() => {
-    loadData();
+    const syncWithCloud = async () => {
+      const settings = storageService.getSettings();
+      if (settings.syncId && navigator.onLine) {
+        const remoteData = await storageService.pullFromCloud(settings.syncId);
+        if (remoteData) {
+          const added = await storageService.mergeHistory(remoteData);
+          if (added > 0) loadData();
+          
+          // Po mergu wyślij zaktualizowaną bazę z powrotem (pełna spójność)
+          const localHistory = await storageService.getHistory();
+          await storageService.pushToCloud(localHistory, settings.syncId);
+        }
+      }
+    };
 
+    loadData();
+    syncWithCloud();
+
+    const interval = setInterval(syncWithCloud, 60000); // Co minutę
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
