@@ -4,8 +4,8 @@ import { Measurement, SBRSettings } from '../types';
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// Npoint.io jest bardzo stabilny i zwraca ID w JSON, co rozwiązuje problemy z CORS
-const API_BASE = 'https://api.npoint.io';
+// Używamy stabilnego punktu końcowego bez zbędnych ukośników
+const API_BASE = 'https://api.npoint.io/documents';
 
 export const storageService = {
   async saveMeasurement(measurement: Measurement): Promise<void> {
@@ -49,19 +49,24 @@ export const storageService = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  // Tworzy nowy kontener w chmurze i zwraca jego ID pobrane z JSON
+  // Inicjalizacja nowej bazy w chmurze
   async createCloudBin(): Promise<string | null> {
     try {
-      const response = await fetch(`${API_BASE}/`, {
+      const response = await fetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([]) // Inicjalizacja pustą tablicą
+        body: JSON.stringify({ sbr_monitor_data: [] }) 
       });
-      if (!response.ok) return null;
+      
+      if (!response.ok) {
+        console.error('Npoint error status:', response.status);
+        return null;
+      }
+      
       const result = await response.json();
-      return result.id || null; // Npoint zwraca { id: "..." }
+      return result.id || null;
     } catch (e) {
-      console.error('Npoint Create Error:', e);
+      console.error('Npoint connection error:', e);
       return null;
     }
   },
@@ -69,15 +74,15 @@ export const storageService = {
   async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
     if (!syncId) return false;
     try {
-      // W npoint POST na konkretne ID nadpisuje dane
+      // POST na /documents/:id aktualizuje zawartość
       const response = await fetch(`${API_BASE}/${syncId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify({ sbr_monitor_data: data })
       });
       return response.ok;
     } catch (e) {
-      console.error('Npoint Push Error:', e);
+      console.error('Cloud Push Error:', e);
       return false;
     }
   },
@@ -87,10 +92,12 @@ export const storageService = {
     try {
       const response = await fetch(`${API_BASE}/${syncId}`);
       if (!response.ok) return null;
-      const data = await response.json();
+      const result = await response.json();
+      // Dane mogą być w obiekcie lub bezpośrednio
+      const data = result.sbr_monitor_data || result;
       return Array.isArray(data) ? data : null;
     } catch (e) {
-      console.error('Npoint Pull Error:', e);
+      console.error('Cloud Pull Error:', e);
       return null;
     }
   }

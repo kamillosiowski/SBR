@@ -15,7 +15,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
 
   const generateId = async () => {
     if (!navigator.onLine) {
-      alert('Brak połączenia z internetem. Nie można utworzyć ID.');
+      alert('Brak połączenia z internetem.');
       return;
     }
     setSyncStatus('creating');
@@ -77,9 +77,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <h2 className="text-2xl font-black text-slate-100 tracking-tight uppercase flex items-center gap-3">
-        <Database className="text-blue-500" /> Chmura SBR
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-black text-slate-100 tracking-tight uppercase flex items-center gap-3">
+          <Database className="text-blue-500" /> Chmura SBR
+        </h2>
+        {!navigator.onLine && (
+          <span className="text-[10px] bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1 rounded-full font-black">BRAK SIECI</span>
+        )}
+      </div>
 
       <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden">
         <div className="flex items-center gap-4 mb-6">
@@ -150,22 +155,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onDataRefresh }) => 
             syncStatus === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
             'bg-red-500/10 text-red-400 border-red-500/20'
           }`}>
-            {syncStatus === 'creating' && 'Inicjalizacja nowej bazy...'}
-            {syncStatus === 'loading' && 'Przesyłanie danych do chmury...'}
-            {syncStatus === 'success' && 'SUKCES: Operacja wykonana!'}
-            {syncStatus === 'error' && 'BŁĄD SERWERA: Spróbuj ponownie za chwilę'}
+            {syncStatus === 'creating' && 'Łączenie z npoint.io...'}
+            {syncStatus === 'loading' && 'Trwa transfer danych...'}
+            {syncStatus === 'success' && 'SUKCES: Połączono z chmurą!'}
+            {syncStatus === 'error' && 'BŁĄD: Serwer nie odpowiada. Spróbuj za 10 sekund.'}
           </div>
         )}
       </div>
 
       <div className="bg-amber-500/5 border border-amber-500/20 p-6 rounded-3xl">
         <h4 className="text-amber-400 font-black text-xs uppercase tracking-[0.2em] flex items-center gap-2 mb-3">
-          <AlertTriangle size={16} /> Ważne wskazówki
+          <AlertTriangle size={16} /> Pomoc techniczna
         </h4>
         <ol className="text-[11px] text-amber-200/60 leading-relaxed font-medium space-y-2 list-decimal ml-4">
-          <li>Jeśli <strong>"Pobierz"</strong> nie działa, upewnij się, że ID jest poprawne (wielkość liter ma znaczenie).</li>
-          <li>Synchronizacja przesyła całą historię pomiarów naraz.</li>
-          <li>Serwer npoint.io jest darmowy i może mieć czasem krótkie przerwy w działaniu.</li>
+          <li>Jeśli masz błąd serwera, odczekaj chwilę – darmowe serwery mają limity zapytań na minutę.</li>
+          <li>Upewnij się, że nie masz włączonego AdBlocka, który mógłby blokować ruch do <strong>npoint.io</strong>.</li>
+          <li>ID jest wrażliwe na wielkość liter.</li>
         </ol>
       </div>
     </div>
