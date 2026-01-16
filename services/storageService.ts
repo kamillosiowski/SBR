@@ -1,11 +1,10 @@
-
 import { Measurement, SBRSettings } from '../types';
 
 const STORAGE_KEY = 'sbr_monitor_data';
 const SETTINGS_KEY = 'sbr_monitor_settings';
 
-// npoint.io API: /bins to poprawny punkt końcowy dla tworzenia i edycji
-const API_BASE = 'https://api.npoint.io/bins';
+// npoint.io API: prawidłowy endpoint bazowy
+const API_BASE = 'https://api.npoint.io';
 
 export const storageService = {
   async saveMeasurement(measurement: Measurement): Promise<void> {
@@ -49,10 +48,10 @@ export const storageService = {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   },
 
-  // Tworzenie nowego "koszyka" danych w chmurze
+  // Tworzenie nowego dokumentu w chmurze
   async createCloudBin(): Promise<string | null> {
     try {
-      const response = await fetch(API_BASE, {
+      const response = await fetch(`${API_BASE}/documents`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -67,8 +66,8 @@ export const storageService = {
       }
       
       const result = await response.json();
-      // npoint zwraca ID w polu 'id' lub 'binId'
-      return result.id || result.binId || null;
+      // npoint zwraca token dokumentu
+      return result.token || null;
     } catch (e) {
       console.error('Network error during createCloudBin:', e);
       return null;
@@ -78,9 +77,9 @@ export const storageService = {
   async pushToCloud(data: Measurement[], syncId: string): Promise<boolean> {
     if (!syncId) return false;
     try {
-      // W npoint.io aktualizacja odbywa się przez PUT lub POST na /bins/:id
-      const response = await fetch(`${API_BASE}/${syncId}`, {
-        method: 'PUT',
+      // Aktualizacja dokumentu przez POST na /documents/:token
+      const response = await fetch(`${API_BASE}/documents/${syncId}`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sbr_data: data })
       });
@@ -94,7 +93,7 @@ export const storageService = {
   async pullFromCloud(syncId: string): Promise<Measurement[] | null> {
     if (!syncId) return null;
     try {
-      const response = await fetch(`${API_BASE}/${syncId}`);
+      const response = await fetch(`${API_BASE}/documents/${syncId}`);
       if (!response.ok) return null;
       const result = await response.json();
       // Dane mogą być owinięte w obiekt sbr_data lub być bezpośrednio tablicą
